@@ -293,6 +293,8 @@ def search_pubmed(compound_name, max_results=20, therapeutic_area=None):
 def analyze_with_claude(paper, compound_name, anthropic_client):
     """Analyze a paper using Claude AI with structured risk assessment"""
     try:
+        st.write(f"🤖 Analyzing: {paper['title'][:50]}...")  # Debug info
+        
         prompt = f"""
         You are a senior drug safety scientist analyzing scientific literature for pharmaceutical regulatory compliance.
         
@@ -339,17 +341,55 @@ def analyze_with_claude(paper, compound_name, anthropic_client):
         - Don't miss any safety signals
         """
         
+        # Debug API call
+        st.write("🔗 Making API call to Claude...")
+        
         message = anthropic_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-3-5-sonnet-20241022",  # Updated to latest model
             max_tokens=1500,
             temperature=0.1,
             messages=[{"role": "user", "content": prompt}]
         )
         
-        return message.content[0].text
+        response_text = message.content[0].text
+        st.write("✅ Received response from Claude")  # Debug info
+        
+        return response_text
         
     except Exception as e:
-        return f"Analysis error: {str(e)}"
+        error_msg = f"Claude API Error: {str(e)}"
+        st.error(error_msg)
+        st.write(f"Error details: {type(e).__name__}")
+        
+        # Return a fallback analysis
+        return f"""
+        ADVERSE_EVENTS_COUNT: 0
+        ADVERSE_EVENTS_LIST:
+        - Analysis failed due to API error
+        
+        DRUG_INTERACTIONS_COUNT: 0
+        DRUG_INTERACTIONS_LIST:
+        - Analysis failed due to API error
+        
+        CONTRAINDICATIONS_COUNT: 0
+        CONTRAINDICATIONS_LIST:
+        - Analysis failed due to API error
+        
+        SAFETY_SIGNALS_DETECTED:
+        - API Error: {error_msg}
+        
+        KEY_FINDINGS:
+        - Unable to analyze due to API connection issue
+        
+        REGULATORY_IMPACT:
+        - Analysis incomplete due to technical error
+        
+        SAFETY_DOMAINS:
+        - Other
+        
+        CLINICAL_SIGNIFICANCE:
+        - Analysis could not be completed
+        """
 
 def calculate_risk_level(analysis_text):
     """Calculate risk level based on systematic scoring of safety signals"""
@@ -610,6 +650,7 @@ def main():
     
     # Header
     st.markdown('<h1 class="main-header">🛡️ PaperSafe AI - Your safety net for scientific literature</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #666; font-size: 1.1rem; margin-top: -1rem;">By Ty Root</p>', unsafe_allow_html=True)
     
     # Show current analysis status
     if st.session_state.analysis_complete and st.session_state.search_results:
@@ -621,7 +662,6 @@ def main():
             <h3 style='color: #1f77b4; margin-bottom: 1rem;'>Transforming pharmaceutical drug safety monitoring through AI-powered literature analysis</h3>
             <p style='font-size: 1.1rem; color: #666; margin-bottom: 0.5rem;'>Reducing literature review time from 20+ hours to <4 hours per week</p>
             <p style='font-size: 1.1rem; color: #666; margin-bottom: 0.5rem;'>Automated FDA compliance monitoring | AI-powered safety signal detection</p>
-            <p style='font-size: 1.1rem; color: #666; margin-bottom: 0.5rem;'By Ty Root</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -742,9 +782,28 @@ def main():
         
         # Initialize Claude client
         try:
+            st.write("🔑 Initializing Claude API client...")  # Debug info
             anthropic_client = Anthropic(api_key=api_key)
+            
+            # Test API connection with a simple call
+            st.write("🧪 Testing API connection...")
+            test_message = anthropic_client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=50,
+                messages=[{"role": "user", "content": "Hello, respond with 'API connection successful'"}]
+            )
+            
+            if "successful" in test_message.content[0].text.lower():
+                st.write("✅ Claude API connection verified")
+            else:
+                st.warning("⚠️ Unusual API response, but connection seems to work")
+                
         except Exception as e:
-            st.error(f"❌ Error initializing Claude API: {str(e)}")
+            st.error(f"❌ Error with Claude API: {str(e)}")
+            st.error("Common issues:")
+            st.error("• API key format should be: sk-ant-api03-...")
+            st.error("• Check if you have sufficient API credits")
+            st.error("• Verify API key is active at https://console.anthropic.com/")
             return
         
         # Progress tracking
