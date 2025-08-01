@@ -621,6 +621,7 @@ def main():
             <h3 style='color: #1f77b4; margin-bottom: 1rem;'>Transforming pharmaceutical drug safety monitoring through AI-powered literature analysis</h3>
             <p style='font-size: 1.1rem; color: #666; margin-bottom: 0.5rem;'>Reducing literature review time from 20+ hours to <4 hours per week</p>
             <p style='font-size: 1.1rem; color: #666; margin-bottom: 0.5rem;'>Automated FDA compliance monitoring | AI-powered safety signal detection</p>
+            <p style='font-size: 1.1rem; color: #666; margin-bottom: 0.5rem;'By Ty Root</p>
         </div>
         """, unsafe_allow_html=True)
     
