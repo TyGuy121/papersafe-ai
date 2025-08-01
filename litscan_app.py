@@ -3,8 +3,13 @@ import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    st.warning("Plotly not available. Charts will be disabled.")
 from anthropic import Anthropic
 import time
 import re
@@ -551,13 +556,21 @@ def create_safety_dashboard(analyzed_papers):
         risk_df = pd.DataFrame(list(risk_counts.items()), columns=['Risk Level', 'Count'])
         risk_df = risk_df[risk_df['Count'] > 0]
         
-        colors = {'HIGH': '#f44336', 'MEDIUM': '#ff9800', 'LOW': '#4caf50', 'UNKNOWN': '#9e9e9e'}
-        color_sequence = [colors.get(level, '#9e9e9e') for level in risk_df['Risk Level']]
-        
-        fig_risk = px.pie(risk_df, values='Count', names='Risk Level', 
-                         color_discrete_sequence=color_sequence,
-                         title="Safety Risk Assessment")
-        st.plotly_chart(fig_risk, use_container_width=True)
+        if PLOTLY_AVAILABLE and len(risk_df) > 0:
+            colors = {'HIGH': '#f44336', 'MEDIUM': '#ff9800', 'LOW': '#4caf50', 'UNKNOWN': '#9e9e9e'}
+            color_sequence = [colors.get(level, '#9e9e9e') for level in risk_df['Risk Level']]
+            
+            fig_risk = px.pie(risk_df, values='Count', names='Risk Level', 
+                             color_discrete_sequence=color_sequence,
+                             title="Safety Risk Assessment")
+            st.plotly_chart(fig_risk, use_container_width=True)
+        else:
+            # Fallback to simple text display if Plotly not available
+            st.markdown("**Risk Level Summary:**")
+            for level, count in risk_counts.items():
+                if count > 0:
+                    color = {'HIGH': '🔴', 'MEDIUM': '🟡', 'LOW': '🟢', 'UNKNOWN': '⚪'}
+                    st.markdown(f"{color.get(level, '⚪')} **{level}**: {count} papers")
     
     with col2:
         st.subheader("Safety Domains Affected")
