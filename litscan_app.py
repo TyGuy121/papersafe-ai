@@ -615,8 +615,13 @@ def main():
     with st.sidebar:
         st.header("🎯 Search Parameters")
         
-        # Hardcoded API Key (hidden from user)
-        api_key = "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"
+        # API Key input (back to manual entry for security)
+        api_key = st.text_input(
+            "Claude API Key", 
+            type="password",
+            help="Enter your Anthropic Claude API key (required for AI analysis)",
+            placeholder="sk-ant-api03-..."
+        )
         
         # Drug input options
         input_method = st.radio(
@@ -712,6 +717,11 @@ def main():
     
     # Main content area
     if search_button:
+        if not api_key:
+            st.error("⚠️ Please enter your Claude API key in the sidebar to enable AI analysis")
+            st.info("💡 Get your API key from: https://console.anthropic.com/")
+            return
+        
         if not compound_name:
             st.error("⚠️ Please enter a compound name")
             return
