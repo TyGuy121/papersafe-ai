@@ -807,14 +807,18 @@ def main():
         with progress_container:
             progress_bar = st.progress(0)
             
-            # Create columns for live status
+            # Create columns for live status - single line metrics
             status_col1, status_col2, status_col3 = st.columns(3)
-            with status_col1:
-                papers_found_metric = st.metric("Papers Found", 0)
-            with status_col2:
-                papers_analyzed_metric = st.metric("Papers Analyzed", 0)
-            with status_col3:
-                claude_responses_metric = st.metric("Claude Responses", 0)
+            
+            # Initialize metric placeholders
+            papers_found_placeholder = status_col1.empty()
+            papers_analyzed_placeholder = status_col2.empty()
+            claude_responses_placeholder = status_col3.empty()
+            
+            # Initial state
+            papers_found_placeholder.metric("Papers Found", 0)
+            papers_analyzed_placeholder.metric("Papers Analyzed", 0)
+            claude_responses_placeholder.metric("Claude Responses", 0)
         
         # Search PubMed
         papers = search_pubmed(compound_name, max_papers, therapeutic_area, max_years_back)
@@ -824,8 +828,7 @@ def main():
             return
         
         # Update papers found count
-        with status_col1:
-            st.metric("Papers Found", len(papers))
+        papers_found_placeholder.metric("Papers Found", len(papers))
         
         progress_bar.progress(25)
         
@@ -839,9 +842,8 @@ def main():
             progress_percentage = 25 + int((i / total_papers) * 75)
             progress_bar.progress(progress_percentage)
             
-            # Update live metrics
-            with status_col2:
-                st.metric("Papers Analyzed", i + 1)
+            # Update live metrics - single line updates
+            papers_analyzed_placeholder.metric("Papers Analyzed", i + 1)
             
             # Analyze with Claude
             analysis_text = analyze_with_claude(paper, compound_name, anthropic_client)
@@ -849,8 +851,13 @@ def main():
             
             # Update Claude responses count
             claude_responses += 1
-            with status_col3:
-                st.metric("Claude Responses", claude_responses)
+            claude_responses_placeholder.metric("Claude Responses", claude_responses)
+            
+            paper['analysis'] = analysis_data
+            analyzed_papers.append(paper)
+            
+            # Small delay to prevent API rate limiting
+            time.sleep(0.5)
             
             paper['analysis'] = analysis_data
             analyzed_papers.append(paper)
