@@ -610,33 +610,89 @@ def create_safety_dashboard(analyzed_papers):
     with col2:
         st.subheader("Safety Domains Affected")
         if domain_counts:
-            # Create a clean list format instead of bar chart
-            st.markdown("**Papers by Safety Domain:**")
-            
             # Sort domains by count (highest first)
             sorted_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)
             
-            for domain, count in sorted_domains:
-                # Create clean domain display with count
-                domain_clean = domain.strip()
-                if domain_clean:
-                    # Use different colors based on count
-                    if count >= 3:
-                        color = "#dc3545"  # Red for high
-                        icon = "🔴"
-                    elif count >= 2:
-                        color = "#fd7e14"  # Orange for medium
-                        icon = "🟡"
-                    else:
-                        color = "#28a745"  # Green for low
-                        icon = "🟢"
+            # Show top domains in a clean grid format
+            if len(sorted_domains) <= 6:
+                # Small number of domains - show all in clean cards
+                for domain, count in sorted_domains:
+                    domain_clean = domain.strip()
+                    if domain_clean:
+                        # Use different colors based on count
+                        if count >= 3:
+                            color = "#dc3545"  # Red for high
+                            icon = "🔴"
+                        elif count >= 2:
+                            color = "#fd7e14"  # Orange for medium
+                            icon = "🟡"
+                        else:
+                            color = "#28a745"  # Green for low
+                            icon = "🟢"
+                        
+                        st.markdown(f"""
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; margin: 0.3rem 0; background-color: #f8f9fa; border-radius: 5px; border-left: 3px solid {color};">
+                            <span style="color: #495057;"><strong>{domain_clean}</strong></span>
+                            <span style="color: {color}; font-weight: bold;">{icon} {count} paper{'s' if count != 1 else ''}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+            else:
+                # Many domains - show top 5 + summary
+                st.markdown("**Top Safety Domains:**")
+                
+                # Show top 5 domains
+                for domain, count in sorted_domains[:5]:
+                    domain_clean = domain.strip()
+                    if domain_clean:
+                        if count >= 3:
+                            color = "#dc3545"
+                            icon = "🔴"
+                        elif count >= 2:
+                            color = "#fd7e14" 
+                            icon = "🟡"
+                        else:
+                            color = "#28a745"
+                            icon = "🟢"
+                        
+                        st.markdown(f"""
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0.6rem; margin: 0.2rem 0; background-color: #f8f9fa; border-radius: 4px; border-left: 3px solid {color};">
+                            <span style="color: #495057; font-size: 0.9rem;"><strong>{domain_clean}</strong></span>
+                            <span style="color: {color}; font-weight: bold; font-size: 0.9rem;">{icon} {count}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                # Show summary for remaining domains
+                remaining_domains = sorted_domains[5:]
+                if remaining_domains:
+                    remaining_count = len(remaining_domains)
+                    total_remaining_papers = sum(count for _, count in remaining_domains)
                     
                     st.markdown(f"""
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; margin: 0.3rem 0; background-color: #f8f9fa; border-radius: 5px; border-left: 3px solid {color};">
-                        <span style="color: #495057;"><strong>{domain_clean}</strong></span>
-                        <span style="color: {color}; font-weight: bold;">{icon} {count} paper{'s' if count != 1 else ''}</span>
+                    <div style="text-align: center; padding: 0.6rem; margin: 0.5rem 0; background-color: #e3f2fd; border-radius: 6px; border: 1px dashed #1976d2;">
+                        <span style="color: #1565c0; font-size: 0.9rem;">
+                            <strong>+ {remaining_count} more domains</strong><br>
+                            <small>({total_remaining_papers} additional papers)</small>
+                        </span>
                     </div>
                     """, unsafe_allow_html=True)
+                    
+                    # Expandable section for all domains
+                    with st.expander(f"📋 View All {len(sorted_domains)} Safety Domains"):
+                        # Create a compact grid layout
+                        cols = st.columns(2)
+                        for i, (domain, count) in enumerate(sorted_domains):
+                            domain_clean = domain.strip()
+                            if domain_clean:
+                                col_idx = i % 2
+                                with cols[col_idx]:
+                                    if count >= 3:
+                                        icon = "🔴"
+                                    elif count >= 2:
+                                        icon = "🟡"
+                                    else:
+                                        icon = "🟢"
+                                    
+                                    st.markdown(f"**{icon} {domain_clean}** ({count} paper{'s' if count != 1 else ''})")
         else:
             st.info("No safety domains identified in analyzed papers")
 
