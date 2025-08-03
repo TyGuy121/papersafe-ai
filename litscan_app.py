@@ -60,6 +60,8 @@ def filter_drug_suggestions(query, drug_list=DRUG_DATABASE, max_suggestions=10):
             suggestions.append(drug)
     
     return suggestions[:max_suggestions]
+
+# Page configuration
 st.set_page_config(
     page_title="PaperSafe AI - Your safety net for scientific literature",
     page_icon="🛡️",
@@ -124,7 +126,7 @@ def initialize_session_state():
     if 'safety_signals' not in st.session_state:
         st.session_state.safety_signals = []
 
-def search_pubmed(compound_name, max_results=20, therapeutic_area=None):
+def search_pubmed(compound_name, max_results=20, therapeutic_area=None, max_years_back=25):
     """Search PubMed for papers related to the compound using official E-utilities API"""
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
     
@@ -153,9 +155,11 @@ def search_pubmed(compound_name, max_results=20, therapeutic_area=None):
     
     search_query = f'({compound_query}) AND ({safety_query}){area_query}'
     
+    # Calculate date range in days
+    days_back = max_years_back * 365
+    
     try:
-        st.info(f"🔍 Searching PubMed for: {compound_name}")
-        st.caption(f"Search query: {search_query[:100]}...")
+        st.info(f"🔍 Searching PubMed for: {compound_name} (last {max_years_back} years)")
         
         # Search for paper IDs
         search_url = f"{base_url}esearch.fcgi"
@@ -166,7 +170,7 @@ def search_pubmed(compound_name, max_results=20, therapeutic_area=None):
             'retmode': 'xml',
             'sort': 'pub+date',
             'datetype': 'pdat',
-            'reldate': '1825'  # Last 5 years
+            'reldate': str(days_back)  # Use calculated days back
         }
         
         search_response = requests.get(search_url, params=search_params, timeout=30)
@@ -183,10 +187,10 @@ def search_pubmed(compound_name, max_results=20, therapeutic_area=None):
         pmids = [id_elem.text for id_elem in search_root.findall('.//Id')]
         
         if not pmids:
-            st.warning(f"No papers found for '{compound_name}' with safety-related terms. Try a different compound name.")
+            st.warning(f"No papers found for '{compound_name}' with safety-related terms in the last {max_years_back} years. Try expanding the date range or different search terms.")
             return []
         
-        st.success(f"✅ Found {len(pmids)} papers. Retrieving details...")
+        st.success(f"✅ Found {len(pmids)} papers from the last {max_years_back} years. Retrieving details...")
         
         # Fetch paper details in batches to avoid timeouts
         papers = []
@@ -293,8 +297,6 @@ def search_pubmed(compound_name, max_results=20, therapeutic_area=None):
 def analyze_with_claude(paper, compound_name, anthropic_client):
     """Analyze a paper using Claude AI with structured risk assessment"""
     try:
-        st.write(f"🤖 Analyzing: {paper['title'][:50]}...")  # Debug info
-        
         prompt = f"""
         You are a senior drug safety scientist analyzing scientific literature for pharmaceutical regulatory compliance.
         
@@ -341,25 +343,18 @@ def analyze_with_claude(paper, compound_name, anthropic_client):
         - Don't miss any safety signals
         """
         
-        # Debug API call
-        st.write("🔗 Making API call to Claude...")
-        
         message = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20241022",  # Updated to latest model
+            model="claude-3-5-sonnet-20241022",
             max_tokens=1500,
             temperature=0.1,
             messages=[{"role": "user", "content": prompt}]
         )
         
         response_text = message.content[0].text
-        st.write("✅ Received response from Claude")  # Debug info
-        
         return response_text
         
     except Exception as e:
         error_msg = f"Claude API Error: {str(e)}"
-        st.error(error_msg)
-        st.write(f"Error details: {type(e).__name__}")
         
         # Return a fallback analysis
         return f"""
@@ -742,6 +737,15 @@ def main():
             help="Number of recent papers to retrieve and analyze"
         )
         
+        # Date range filter
+        max_years_back = st.slider(
+            "Publication Date Range (Years Back)",
+            min_value=1,
+            max_value=50,
+            value=25,
+            help="Only analyze papers published within this many years (e.g., 25 = papers from 2000 onwards)"
+        )
+        
         # Search and Clear buttons with matching styling
         search_button = st.button("🔍 Search & Analyze Literature", type="primary", use_container_width=True)
         clear_button = st.button("🗑️ Clear Results or Stop Scan", type="secondary", use_container_width=True)
@@ -780,60 +784,73 @@ def main():
             st.error("⚠️ Please enter a compound name")
             return
         
-        # Initialize Claude client
+        # Initialize Claude client with cleaner testing
         try:
-            st.write("🔑 Initializing Claude API client...")  # Debug info
             anthropic_client = Anthropic(api_key=api_key)
             
-            # Test API connection with a simple call
-            st.write("🧪 Testing API connection...")
+            # Quick API test without showing details
             test_message = anthropic_client.messages.create(
                 model="claude-3-5-sonnet-20241022",
-                max_tokens=50,
-                messages=[{"role": "user", "content": "Hello, respond with 'API connection successful'"}]
+                max_tokens=10,
+                messages=[{"role": "user", "content": "Hello"}]
             )
             
-            if "successful" in test_message.content[0].text.lower():
-                st.write("✅ Claude API connection verified")
-            else:
-                st.warning("⚠️ Unusual API response, but connection seems to work")
-                
         except Exception as e:
             st.error(f"❌ Error with Claude API: {str(e)}")
             st.error("Common issues:")
-            st.error("• API key format should be: sk-ant-api03-...")
             st.error("• Check if you have sufficient API credits")
             st.error("• Verify API key is active at https://console.anthropic.com/")
             return
         
-        # Progress tracking
+        # Clean progress tracking
         progress_container = st.container()
         with progress_container:
-            st.info(f"🔍 Searching PubMed for papers related to '{compound_name}'...")
             progress_bar = st.progress(0)
-            status_text = st.empty()
+            
+            # Create columns for live status
+            status_col1, status_col2, status_col3 = st.columns(3)
+            with status_col1:
+                papers_found_metric = st.metric("Papers Found", 0)
+            with status_col2:
+                papers_analyzed_metric = st.metric("Papers Analyzed", 0)
+            with status_col3:
+                claude_responses_metric = st.metric("Claude Responses", 0)
         
         # Search PubMed
-        papers = search_pubmed(compound_name, max_papers, therapeutic_area)
+        papers = search_pubmed(compound_name, max_papers, therapeutic_area, max_years_back)
         
         if not papers:
-            st.warning(f"No papers found for compound '{compound_name}'. Try a different compound name or search terms.")
+            st.warning(f"No papers found for compound '{compound_name}'. Try expanding the date range or different search terms.")
             return
         
-        progress_bar.progress(25)
-        status_text.text(f"Found {len(papers)} papers. Starting AI analysis...")
+        # Update papers found count
+        with status_col1:
+            st.metric("Papers Found", len(papers))
         
-        # Analyze papers with Claude
+        progress_bar.progress(25)
+        
+        # Analyze papers with Claude - Clean progress display
         analyzed_papers = []
         total_papers = len(papers)
+        claude_responses = 0
         
         for i, paper in enumerate(papers):
-            progress_percentage = 25 + int((i / total_papers) * 70)
+            # Update progress
+            progress_percentage = 25 + int((i / total_papers) * 75)
             progress_bar.progress(progress_percentage)
-            status_text.text(f"Analyzing paper {i+1}/{total_papers}: {paper['title'][:50]}...")
             
+            # Update live metrics
+            with status_col2:
+                st.metric("Papers Analyzed", i + 1)
+            
+            # Analyze with Claude
             analysis_text = analyze_with_claude(paper, compound_name, anthropic_client)
             analysis_data = parse_claude_analysis(analysis_text)
+            
+            # Update Claude responses count
+            claude_responses += 1
+            with status_col3:
+                st.metric("Claude Responses", claude_responses)
             
             paper['analysis'] = analysis_data
             analyzed_papers.append(paper)
@@ -842,13 +859,16 @@ def main():
             time.sleep(0.5)
         
         progress_bar.progress(100)
-        status_text.text("✅ Analysis complete!")
+        
+        # Final success message
+        st.success(f"✅ Analysis complete! Processed {len(analyzed_papers)} papers with {claude_responses} AI responses.")
         
         # Store results in session state
         st.session_state.search_results = analyzed_papers
         st.session_state.analysis_complete = True
         
-        # Clear progress indicators
+        # Clear progress indicators after a moment
+        time.sleep(2)
         progress_container.empty()
     
     # Display results if analysis is complete
@@ -932,7 +952,7 @@ def main():
                 card_class = "safety-signal-medium"
                 risk_color = "🟡"
             elif risk_level == 'LOW':
-                card_class = "safety-signal-low"
+                card_class = "safety-signal-low"  
                 risk_color = "🟢"
             else:
                 card_class = "safety-signal-low"
@@ -1089,7 +1109,7 @@ def main():
                 st.download_button(
                     label="Download Analysis Results",
                     data=csv,
-                    file_name=f"litscan_analysis_{compound_name}_{datetime.now().strftime('%Y%m%d')}.csv",
+                    file_name=f"papersafe_analysis_{compound_name}_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv"
                 )
     
