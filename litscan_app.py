@@ -664,13 +664,81 @@ def main():
     with st.sidebar:
         st.header("🎯 Search Parameters")
         
-        # API Key input (back to manual entry for security)
-        api_key = st.text_input(
-            "Claude API Key", 
-            type="password",
-            help="Enter your Anthropic Claude API key (required for AI analysis)",
-            placeholder="sk-ant-api03-..."
-        )
+        # API Key validation system with visual indicators
+        if 'api_key_validated' not in st.session_state:
+            st.session_state.api_key_validated = False
+            st.session_state.api_client = None
+        
+        if not st.session_state.api_key_validated:
+            # Show API key input when not validated
+            api_key = st.text_input(
+                "Claude API Key", 
+                type="password",
+                help="Enter your Anthropic Claude API key (required for AI analysis)",
+                placeholder="sk-ant-api03-...",
+                key="api_key_input"
+            )
+            
+            # Test API key when user enters it
+            if api_key and len(api_key) > 10:
+                if st.button("🔗 Test API Connection", type="secondary", use_container_width=True):
+                    with st.spinner("Testing API connection..."):
+                        try:
+                            # Test the API key
+                            test_client = Anthropic(api_key=api_key)
+                            test_message = test_client.messages.create(
+                                model="claude-3-5-sonnet-20241022",
+                                max_tokens=10,
+                                messages=[{"role": "user", "content": "Hello"}]
+                            )
+                            
+                            # If successful, store in session state
+                            st.session_state.api_key_validated = True
+                            st.session_state.api_client = test_client
+                            st.session_state.validated_api_key = api_key
+                            st.rerun()
+                            
+                        except Exception as e:
+                            # Show error with red indicator
+                            st.markdown("""
+                            <div style="display: flex; align-items: center; padding: 0.5rem; background-color: #ffebee; border-radius: 5px; border-left: 4px solid #f44336; margin: 0.5rem 0;">
+                                <span style="color: #f44336; font-size: 1.2rem; margin-right: 0.5rem;">🔴</span>
+                                <div>
+                                    <strong style="color: #c62828;">API Connection Failed</strong><br>
+                                    <small style="color: #666;">Invalid API key or insufficient credits</small>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            st.error("Common issues:")
+                            st.error("• Check API key format (should start with 'sk-ant-api03-')")
+                            st.error("• Verify you have sufficient API credits")
+                            st.error("• Get your key from: https://console.anthropic.com/")
+        else:
+            # Show validated status with green indicator
+            st.markdown("""
+            <div style="display: flex; align-items: center; padding: 0.8rem; background-color: #e8f5e8; border-radius: 8px; border-left: 4px solid #4caf50; margin: 1rem 0;">
+                <span style="color: #4caf50; font-size: 1.5rem; margin-right: 0.8rem;">🟢</span>
+                <div style="flex: 1;">
+                    <strong style="color: #2e7d32; font-size: 1.1rem;">CLAUDE API</strong><br>
+                    <small style="color: #388e3c;">✅ Connected & Ready</small>
+                </div>
+                <button onclick="window.location.reload()" style="background: none; border: 1px solid #4caf50; color: #4caf50; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
+                    Reset
+                </button>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Add a reset button for changing API key
+            if st.button("🔄 Change API Key", help="Click to enter a different API key"):
+                st.session_state.api_key_validated = False
+                st.session_state.api_client = None
+                if 'validated_api_key' in st.session_state:
+                    del st.session_state.validated_api_key
+                st.rerun()
+            
+            # Use the validated API client
+            api_key = st.session_state.validated_api_key
         
         # Drug input options
         input_method = st.radio(
@@ -775,8 +843,8 @@ def main():
     
     # Main content area
     if search_button:
-        if not api_key:
-            st.error("⚠️ Please enter your Claude API key in the sidebar to enable AI analysis")
+        if not st.session_state.api_key_validated:
+            st.error("⚠️ Please enter and validate your Claude API key in the sidebar first")
             st.info("💡 Get your API key from: https://console.anthropic.com/")
             return
         
@@ -784,23 +852,8 @@ def main():
             st.error("⚠️ Please enter a compound name")
             return
         
-        # Initialize Claude client with cleaner testing
-        try:
-            anthropic_client = Anthropic(api_key=api_key)
-            
-            # Quick API test without showing details
-            test_message = anthropic_client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=10,
-                messages=[{"role": "user", "content": "Hello"}]
-            )
-            
-        except Exception as e:
-            st.error(f"❌ Error with Claude API: {str(e)}")
-            st.error("Common issues:")
-            st.error("• Check if you have sufficient API credits")
-            st.error("• Verify API key is active at https://console.anthropic.com/")
-            return
+        # Use the pre-validated Claude client
+        anthropic_client = st.session_state.api_client
         
         # Clean progress tracking
         progress_container = st.container()
