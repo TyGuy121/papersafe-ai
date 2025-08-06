@@ -216,9 +216,9 @@ def search_pubmed(compound_name, max_results=20, therapeutic_area=None, max_year
                 try:
                     # Extract article information with better error handling
                     title_elem = article.find('.//ArticleTitle')
-                    title = title_elem.text if title_elem is not None else "No title available"
+                    title = title_elem.text if title_elem is not None and title_elem.text else "No title available"
                     
-                    # Handle multiple abstract sections
+                    # Handle multiple abstract sections with None checks
                     abstract_texts = []
                     for abstract_elem in article.findall('.//AbstractText'):
                         if abstract_elem.text:
@@ -236,7 +236,7 @@ def search_pubmed(compound_name, max_results=20, therapeutic_area=None, max_year
                     for author in article.findall('.//Author'):
                         lastname = author.find('.//LastName')
                         forename = author.find('.//ForeName')
-                        if lastname is not None and forename is not None:
+                        if lastname is not None and forename is not None and lastname.text and forename.text:
                             authors.append(f"{forename.text} {lastname.text}")
                     
                     # Extract comprehensive publication date
@@ -244,37 +244,44 @@ def search_pubmed(compound_name, max_results=20, therapeutic_area=None, max_year
                     pub_year = article.find('.//PubDate/Year')
                     pub_month = article.find('.//PubDate/Month')
                     
-                    if pub_year is not None:
-                        if pub_month is not None:
+                    if pub_year is not None and pub_year.text:
+                        if pub_month is not None and pub_month.text:
                             pub_date = f"{pub_month.text} {pub_year.text}"
                         else:
                             pub_date = pub_year.text
                     
                     # Extract PMID
                     pmid_elem = article.find('.//PMID')
-                    pmid = pmid_elem.text if pmid_elem is not None else "Unknown"
+                    pmid = pmid_elem.text if pmid_elem is not None and pmid_elem.text else "Unknown"
                     
                     # Extract journal information
                     journal_elem = article.find('.//Journal/Title')
-                    journal = journal_elem.text if journal_elem is not None else "Unknown Journal"
+                    journal = journal_elem.text if journal_elem is not None and journal_elem.text else "Unknown Journal"
                     
                     # Extract DOI if available
                     doi_elem = article.find('.//ArticleId[@IdType="doi"]')
-                    doi = doi_elem.text if doi_elem is not None else None
+                    doi = doi_elem.text if doi_elem is not None and doi_elem.text else None
+                    
+                    # Ensure title and abstract are strings before concatenation
+                    title_str = str(title) if title else "No title available"
+                    abstract_str = str(abstract) if abstract else "No abstract available"
                     
                     papers.append({
                         'pmid': pmid,
-                        'title': title,
-                        'abstract': abstract,
+                        'title': title_str,
+                        'abstract': abstract_str,
                         'authors': ', '.join(authors[:3]) + (' et al.' if len(authors) > 3 else ''),
                         'pub_date': pub_date,
                         'journal': journal,
                         'doi': doi,
                         'url': f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
-                        'compound_mentioned': compound_name.lower() in (title + " " + abstract).lower()
+                        'compound_mentioned': compound_name.lower() in (title_str + " " + abstract_str).lower()
                     })
                     
                 except Exception as e:
+                    # More specific error logging
+                    pmid_elem = article.find('.//PMID')
+                    pmid = pmid_elem.text if pmid_elem is not None and pmid_elem.text else "Unknown"
                     st.warning(f"Error parsing article {pmid}: {str(e)}")
                     continue
         
@@ -908,6 +915,11 @@ def main():
             st.error("⚠️ Please enter a compound name")
             return
         
+        # Clear previous results when starting new search
+        st.session_state.search_results = []
+        st.session_state.analysis_complete = False
+        st.session_state.safety_signals = []
+        
         # Use the pre-validated Claude client
         anthropic_client = st.session_state.api_client
         
@@ -935,6 +947,14 @@ def main():
         if not papers:
             st.warning(f"No papers found for compound '{compound_name}'. Try expanding the date range or different search terms.")
             return
+        
+        # Debug info to verify paper count
+        st.info(f"🔍 PubMed returned {len(papers)} papers (requested: {max_papers})")
+        
+        # Trim to exactly the requested number if needed
+        if len(papers) > max_papers:
+            papers = papers[:max_papers]
+            st.warning(f"⚠️ Trimmed to exactly {max_papers} papers as requested")
         
         # Update papers found count
         papers_found_placeholder.metric("Papers Found", len(papers))
@@ -976,8 +996,12 @@ def main():
         
         progress_bar.progress(100)
         
-        # Final success message
-        st.success(f"✅ Analysis complete! Processed {len(analyzed_papers)} papers with {claude_responses} AI responses.")
+        # Final success message with verification
+        st.success(f"✅ Analysis complete! Processed **{len(analyzed_papers)}** papers with {claude_responses} AI responses.")
+        
+        # Verification check
+        if len(analyzed_papers) != max_papers:
+            st.info(f"📊 Note: Analyzed {len(analyzed_papers)} papers (you requested {max_papers}). This may be due to PubMed returning fewer results or parsing issues.")
         
         # Store results in session state
         st.session_state.search_results = analyzed_papers
