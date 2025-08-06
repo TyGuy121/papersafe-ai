@@ -1018,17 +1018,21 @@ def main():
     
     # Display results if analysis is complete
     if st.session_state.analysis_complete and st.session_state.search_results:
-        analyzed_papers = st.session_state.search_results
+        # Use the actual current search results
+        current_analyzed_papers = st.session_state.search_results
+        
+        # Debug verification 
+        st.caption(f"🔧 Debug: Display section using {len(current_analyzed_papers)} papers from session state")
         
         # Executive Summary
         st.header("📊 Executive Safety Summary")
         
-        # Get the search context from session state
-        total_found = getattr(st.session_state, 'total_papers_found', len(analyzed_papers))
-        papers_analyzed_count = len(analyzed_papers)  # Use actual length, not stored value
+        # Get the search context - use CURRENT data, not session state stored values
+        total_found = getattr(st.session_state, 'total_papers_found', len(current_analyzed_papers))
+        papers_analyzed_count = len(current_analyzed_papers)  # Use actual current length
         
         # Debug verification
-        st.caption(f"🔧 Debug: Executive summary showing {papers_analyzed_count} papers (session has {len(st.session_state.search_results)} papers)")
+        st.caption(f"🔧 Debug: Executive summary showing {papers_analyzed_count} papers (total found: {total_found})")
         
         # Show context banner
         if total_found > papers_analyzed_count:
@@ -1039,17 +1043,17 @@ def main():
         # Key metrics with enhanced risk details
         col1, col2, col3, col4 = st.columns(4)
         
-        high_risk_count = sum(1 for p in analyzed_papers if p.get('analysis', {}).get('risk_level') == 'HIGH')
-        medium_risk_count = sum(1 for p in analyzed_papers if p.get('analysis', {}).get('risk_level') == 'MEDIUM')
-        total_papers = len(analyzed_papers)
+        high_risk_count = sum(1 for p in current_analyzed_papers if p.get('analysis', {}).get('risk_level') == 'HIGH')
+        medium_risk_count = sum(1 for p in current_analyzed_papers if p.get('analysis', {}).get('risk_level') == 'MEDIUM')
+        total_papers = len(current_analyzed_papers)  # Use current papers count
         
         # Calculate total safety signals across all papers
-        total_adverse_events = sum(p.get('analysis', {}).get('adverse_events_count', 0) for p in analyzed_papers)
-        total_interactions = sum(p.get('analysis', {}).get('drug_interactions_count', 0) for p in analyzed_papers)
-        total_contraindications = sum(p.get('analysis', {}).get('contraindications_count', 0) for p in analyzed_papers)
+        total_adverse_events = sum(p.get('analysis', {}).get('adverse_events_count', 0) for p in current_analyzed_papers)
+        total_interactions = sum(p.get('analysis', {}).get('drug_interactions_count', 0) for p in current_analyzed_papers)
+        total_contraindications = sum(p.get('analysis', {}).get('contraindications_count', 0) for p in current_analyzed_papers)
         
         # Count papers requiring FDA reporting (based on high risk or specific regulatory mentions)
-        fda_reporting_count = sum(1 for p in analyzed_papers 
+        fda_reporting_count = sum(1 for p in current_analyzed_papers 
                                  if p.get('analysis', {}).get('risk_level') == 'HIGH' 
                                  or 'fda' in p.get('analysis', {}).get('regulatory_impact', '').lower() 
                                  or 'reporting' in p.get('analysis', {}).get('regulatory_impact', '').lower())
@@ -1080,7 +1084,7 @@ def main():
         
         # Safety Dashboard
         st.header("📈 Safety Signal Dashboard")
-        create_safety_dashboard(analyzed_papers)
+        create_safety_dashboard(current_analyzed_papers)
         
         # Detailed Paper Analysis
         st.header("📋 Detailed Paper Analysis")
@@ -1092,10 +1096,10 @@ def main():
             key="risk_filter"
         )
         
-        # Filter papers based on selection
-        filtered_papers = analyzed_papers
+        # Filter papers based on selection - use current papers
+        filtered_papers = current_analyzed_papers
         if risk_filter != "All":
-            filtered_papers = [p for p in analyzed_papers 
+            filtered_papers = [p for p in current_analyzed_papers 
                              if p.get('analysis', {}).get('risk_level') == risk_filter]
         
         # Display filtered papers
@@ -1234,7 +1238,7 @@ def main():
                 report_data = {
                     'compound': compound_name,
                     'analysis_date': datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    'total_papers': len(analyzed_papers),
+                    'total_papers': len(current_analyzed_papers),
                     'high_risk': high_risk_count,
                     'medium_risk': medium_risk_count,
                     'fda_reporting': fda_reporting_count
@@ -1248,7 +1252,7 @@ def main():
             if st.button("💾 Download CSV Data"):
                 # Prepare data for CSV
                 csv_data = []
-                for paper in analyzed_papers:
+                for paper in current_analyzed_papers:
                     analysis = paper.get('analysis', {})
                     csv_data.append({
                         'PMID': paper['pmid'],
