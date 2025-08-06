@@ -190,7 +190,7 @@ def search_pubmed(compound_name, max_results=20, therapeutic_area=None, max_year
             st.warning(f"No papers found for '{compound_name}' with safety-related terms in the last {max_years_back} years. Try expanding the date range or different search terms.")
             return []
         
-        st.success(f"✅ Found {len(pmids)} papers from the last {max_years_back} years. Retrieving details...")
+        st.success(f"✅ Found {len(pmids)} papers from the last {max_years_back} years.")
         
         # Fetch paper details in batches to avoid timeouts
         papers = []
@@ -1024,9 +1024,9 @@ def main():
         
         # Show context banner
         if total_found > papers_analyzed_count:
-            st.info(f"📋 **Analysis Scope:** {papers_analyzed_count} papers analyzed out of {total_found} papers found (last {max_years_back if 'max_years_back' in locals() else '25'} years)")
+            st.info(f"📋 **Analysis Scope:** {papers_analyzed_count} of {total_found} papers analyzed (last {max_years_back if 'max_years_back' in locals() else '25'} years)")
         else:
-            st.info(f"📋 **Analysis Scope:** All {papers_analyzed_count} papers found (last {max_years_back if 'max_years_back' in locals() else '25'} years) were analyzed")
+            st.info(f"📋 **Analysis Scope:** All {papers_analyzed_count} papers found and analyzed (last {max_years_back if 'max_years_back' in locals() else '25'} years)")
         
         # Key metrics with enhanced risk details
         col1, col2, col3, col4 = st.columns(4)
