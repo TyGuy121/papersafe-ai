@@ -915,7 +915,12 @@ def main():
             st.error("⚠️ Please enter a compound name")
             return
         
-        # Clear previous results when starting new search
+        # COMPLETE session state reset - clear everything
+        for key in list(st.session_state.keys()):
+            if key.startswith(('search_results', 'analysis_complete', 'safety_signals', 'total_papers', 'papers_analyzed')):
+                del st.session_state[key]
+        
+        # Reset core session variables
         st.session_state.search_results = []
         st.session_state.analysis_complete = False
         st.session_state.safety_signals = []
@@ -1020,7 +1025,10 @@ def main():
         
         # Get the search context from session state
         total_found = getattr(st.session_state, 'total_papers_found', len(analyzed_papers))
-        papers_analyzed_count = getattr(st.session_state, 'papers_analyzed', len(analyzed_papers))
+        papers_analyzed_count = len(analyzed_papers)  # Use actual length, not stored value
+        
+        # Debug verification
+        st.caption(f"🔧 Debug: Executive summary showing {papers_analyzed_count} papers (session has {len(st.session_state.search_results)} papers)")
         
         # Show context banner
         if total_found > papers_analyzed_count:
