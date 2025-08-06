@@ -1018,6 +1018,16 @@ def main():
         # Executive Summary
         st.header("📊 Executive Safety Summary")
         
+        # Get the search context from session state
+        total_found = getattr(st.session_state, 'total_papers_found', len(analyzed_papers))
+        papers_analyzed_count = getattr(st.session_state, 'papers_analyzed', len(analyzed_papers))
+        
+        # Show context banner
+        if total_found > papers_analyzed_count:
+            st.info(f"📋 **Analysis Scope:** {papers_analyzed_count} papers analyzed out of {total_found} papers found (last {max_years_back if 'max_years_back' in locals() else '25'} years)")
+        else:
+            st.info(f"📋 **Analysis Scope:** All {papers_analyzed_count} papers found (last {max_years_back if 'max_years_back' in locals() else '25'} years) were analyzed")
+        
         # Key metrics with enhanced risk details
         col1, col2, col3, col4 = st.columns(4)
         
@@ -1037,7 +1047,8 @@ def main():
                                  or 'reporting' in p.get('analysis', {}).get('regulatory_impact', '').lower())
         
         with col1:
-            st.metric("Total Papers Analyzed", total_papers)
+            st.metric("Papers Analyzed", total_papers, 
+                     delta=f"of {total_found} found" if total_found > total_papers else None)
         with col2:
             st.metric("High Risk Signals", high_risk_count, 
                      delta=f"{high_risk_count/total_papers*100:.1f}%" if total_papers > 0 else "0%")
